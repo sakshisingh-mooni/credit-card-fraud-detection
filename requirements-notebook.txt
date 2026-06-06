@@ -1,0 +1,8 @@
+# requirements-notebook.txt — Training environment only
+# Extends the API runtime deps with notebook-specific packages
+-r requirements.txt
+pandas==3.0.3
+imbalanced-learn==0.14.1
+shap==0.52.0
+matplotlib
+seaborn

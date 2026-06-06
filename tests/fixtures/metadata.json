@@ -1,0 +1,14 @@
+{
+  "model_version": "test-fixture",
+  "optimal_threshold": 0.5,
+  "feature_count": 30,
+  "cols_to_scale": [
+    "Time",
+    "Amount"
+  ],
+  "training_fraud_rate": 0.1,
+  "test_pr_auc": 0.85,
+  "test_roc_auc": 0.97,
+  "scale_pos_weight": 9.0,
+  "description": "Test fixture model \u2014 not for production"
+}

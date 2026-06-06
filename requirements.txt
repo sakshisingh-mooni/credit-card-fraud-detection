@@ -1,0 +1,27 @@
+# requirements.txt — Credit Card Fraud Detection API
+# Pin all versions for reproducible builds on Azure
+# Verified on Python 3.12 (matches local Anaconda environment)
+#
+# IMPORTANT: This is the INFERENCE-ONLY requirements file.
+# shap, imbalanced-learn, and pandas are TRAINING-TIME dependencies.
+# They are not imported anywhere in app.py.
+# Including them added ~300MB+ to the Docker image for zero benefit.
+#
+# Training dependencies belong in a separate requirements-train.txt or
+# in the notebook environment, not in the production API image.
+#
+# Sources:
+#   Flask:        https://flask.palletsprojects.com/en/3.1.x/installation/
+#   gunicorn:     https://docs.gunicorn.org/en/stable/install.html
+#   scikit-learn: https://scikit-learn.org/stable/install.html
+#   xgboost:      https://xgboost.readthedocs.io/en/stable/install.html
+
+# Web framework + server
+flask==3.1.0
+gunicorn==23.0.0
+
+# ML core (inference only)
+scikit-learn==1.8.0
+xgboost==3.2.0
+numpy==2.4.6
+joblib==1.4.2

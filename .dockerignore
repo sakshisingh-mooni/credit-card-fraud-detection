@@ -1,0 +1,44 @@
+# .dockerignore — Credit Card Fraud Detection API
+# Prevents large training files and dev artifacts from entering the Docker image.
+# Docker sends the entire build context to the daemon before building.
+# Without this file, creditcard.csv (143MB) and notebooks would be included.
+#
+# Source: https://docs.docker.com/build/concepts/context/#dockerignore-files
+
+# ── Training data (never goes in production image) ────────────────────────────
+*.csv
+*.parquet
+*.feather
+
+# ── Jupyter notebooks and checkpoints ────────────────────────────────────────
+*.ipynb
+.ipynb_checkpoints/
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+.pytest_cache/
+
+# ── Test and training scripts ─────────────────────────────────────────────────
+tests/
+SAVE_MODEL_CELL.py
+
+# ── Dev and CI files ──────────────────────────────────────────────────────────
+.gitignore
+.git/
+*.md
+*.txt
+!requirements.txt
+
+# ── IDE and OS files ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
