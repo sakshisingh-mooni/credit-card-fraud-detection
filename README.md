@@ -1,6 +1,6 @@
 # Credit Card Fraud Detection
 
-> XGBoost fraud classifier trained on 284,807 real transactions · deployed as a REST API on Hugging Face Spaces · PR-AUC 0.87 · ROC-AUC 0.97
+> XGBoost fraud classifier trained on 284,807 real transactions · deployed as a REST API on Hugging Face Spaces · PR-AUC 0.88 · ROC-AUC 0.98
 
 **Live API** → `https://sakshisingh2710-credit-card-fraud-detection.hf.space`
 **Space page** → [huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection](https://huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection)
@@ -28,7 +28,7 @@ Client (curl / Postman / app)
 │                                         │
 │  ┌──────────────────────────────────┐   │
 │  │  Gunicorn (2 workers × 2 threads)│   │
-│  │  bound to 0.0.0.0:7860            │   │
+│  │  bound to 0.0.0.0:7860           │   │
 │  │  ┌────────────────────────────┐  │   │
 │  │  │  Flask 3.x REST API        │  │   │
 │  │  │  ├── GET  /health          │  │   │
@@ -40,13 +40,17 @@ Client (curl / Postman / app)
 │                    │ joblib.load        │
 │  ┌─────────────────▼────────────────┐   │
 │  │  model/                          │   │
-│  │  ├── fraud_model.pkl  (XGBoost)  │   │
-│  │  ├── scaler.pkl  (StandardScaler)│   │
-│  │  ├── feature_cols.pkl            │   │
+│  │  ├── fraud_pipeline.joblib       │   │
+│  │  │   ├─ ColumnTransformer        │   │
+│  │  │   │  └─ StandardScaler        │   │
+│  │  │   │     (Time + Amount only)  │   │
+│  │  │   └─ XGBClassifier            │   │
 │  │  └── metadata.json               │   │
 │  └──────────────────────────────────┘   │
 └─────────────────────────────────────────┘
 ```
+
+The model artifact is a single sklearn `Pipeline` — preprocessing (StandardScaler on Time/Amount) and inference (XGBClassifier) are serialised as one unit. No separate scaler file, no manual transform step, no train/serve skew risk.
 
 The API is built and run from a single `Dockerfile`. The live deployment runs on Hugging Face Spaces, which builds the image on push and routes external traffic to port `7860`.
 
@@ -57,6 +61,7 @@ The API is built and run from a single `Dockerfile`. The live deployment runs on
 | Layer | Technology |
 |---|---|
 | Model | XGBoost 3.2 · scikit-learn 1.8 |
+| Artifact | sklearn `Pipeline` (ColumnTransformer + XGBClassifier) — single `.joblib` |
 | Imbalance handling | `scale_pos_weight=577` · SMOTE (CV only) |
 | Explainability | SHAP TreeExplainer |
 | API | Flask 3.1 · Gunicorn 23 |
@@ -72,8 +77,8 @@ Evaluated on a held-out 20% test split (56,962 transactions, 98 fraud cases).
 
 | Metric | Score |
 |---|---|
-| **PR-AUC** | **0.87** |
-| ROC-AUC | 0.97 |
+| **PR-AUC** | **0.88** |
+| ROC-AUC | 0.98 |
 | Fraud recall | 79% |
 | Fraud precision | 95% |
 | Optimal threshold | 0.99 |
@@ -88,7 +93,9 @@ With 0.17% fraud, a model that predicts "legitimate" for every transaction score
 
 ## Key ML decisions
 
-**Split before scaling** — `StandardScaler` is fit only on training data, then applied to the test set. Fitting on the full dataset before splitting is data leakage.
+**Single Pipeline artifact** — `StandardScaler` (fit on Time/Amount only) and `XGBClassifier` are wrapped in a sklearn `Pipeline` and serialised as one `fraud_pipeline.joblib`. Preprocessing and inference travel together — the scaler's fitted statistics cannot go out of sync with the model. This is v2 of the artifact; v1 saved scaler and model as separate files.
+
+**Split before scaling** — The `ColumnTransformer` inside the Pipeline is fit only on training data, then applied to the test set via `pipeline.predict_proba()`. Fitting on the full dataset before splitting is data leakage.
 
 **SMOTE inside CV folds only** — synthetic oversampling is applied within each training fold during cross-validation. Applying SMOTE before splitting introduces synthetic fraud samples into the validation set, inflating recall.
 
@@ -109,7 +116,7 @@ Liveness probe. Returns 200 when the model is loaded and the server is ready.
 curl https://sakshisingh2710-credit-card-fraud-detection.hf.space/health
 ```
 ```json
-{"model_version": "1.0.0", "status": "ok"}
+{"model_version": "2.0.0", "status": "ok"}
 ```
 
 ### GET /info
@@ -120,11 +127,12 @@ curl https://sakshisingh2710-credit-card-fraud-detection.hf.space/info
 ```
 ```json
 {
-  "model_version": "1.0.0",
+  "model_version": "2.0.0",
+  "artifact": "fraud_pipeline.joblib",
   "optimal_threshold": 0.99,
   "feature_count": 30,
-  "test_pr_auc": 0.87,
-  "test_roc_auc": 0.97,
+  "test_pr_auc": 0.8787,
+  "test_roc_auc": 0.9825,
   "scale_pos_weight": 577.29,
   "training_fraud_rate": 0.00173
 }
@@ -146,7 +154,7 @@ curl -X POST https://sakshisingh2710-credit-card-fraud-detection.hf.space/predic
   "prediction": 0,
   "label": "LEGITIMATE",
   "threshold_used": 0.99,
-  "model_version": "1.0.0"
+  "model_version": "2.0.0"
 }
 ```
 
@@ -184,7 +192,7 @@ curl -X POST https://sakshisingh2710-credit-card-fraud-detection.hf.space/predic
 
 **Prerequisites:** Python 3.12+, Docker Desktop
 
-> **Note:** `model/` is not included in this repository (gitignored — see [Project structure](#project-structure)). To run locally, either retrain the model (below) or download the artifacts from the [live Space](https://huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection/tree/main/model).
+> **Note:** `model/` is not included in the GitHub repository (gitignored). To run locally, either retrain the model (below) or download `fraud_pipeline.joblib` and `metadata.json` from the [live Space](https://huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection/tree/main/model) and place them in `model/`.
 
 ```bash
 git clone https://github.com/sakshisingh-mooni/credit-card-fraud-detection
@@ -193,7 +201,7 @@ cd credit-card-fraud-detection
 # Install API dependencies
 pip install -r requirements.txt
 
-# Run tests (generate fixtures first — not committed to the repo)
+# Generate test fixtures and run tests
 python generate_fixtures.py
 python -m pytest tests/ -v
 # Expected: 21 passed
@@ -214,7 +222,7 @@ docker run -p 7860:7860 fraud-api
 curl http://localhost:7860/health
 ```
 
-**To retrain the model**, open `credit_card_fraud_detection_v2.ipynb`, add `creditcard.csv` to the project root, and run Kernel → Restart & Run All. The last cell exports all artifacts to `model/`.
+**To retrain the model**, open `credit_card_fraud_detection_v2.ipynb`, add `creditcard.csv` to the project root, and run Kernel → Restart & Run All. The last cell builds the sklearn Pipeline, verifies output, and exports `fraud_pipeline.joblib` + `metadata.json` to `model/`.
 
 Install notebook dependencies:
 ```bash
@@ -228,24 +236,33 @@ pip install -r requirements-notebook.txt
 ```
 credit-card-fraud-detection/
 ├── README.md
-├── app.py                          ← Flask REST API
+├── app.py                          ← Flask REST API (loads fraud_pipeline.joblib)
 ├── Dockerfile                      ← python:3.12-slim, non-root user, port 7860
 ├── .dockerignore
 ├── .gitignore
 ├── requirements.txt                ← API runtime deps only
 ├── requirements-notebook.txt       ← training deps (pandas, shap, imbalanced-learn)
-├── SAVE_MODEL_CELL.py              ← paste as last notebook cell to export model
+├── SAVE_MODEL_CELL.py              ← paste as last notebook cell to export pipeline
 ├── credit_card_fraud_detection_v2.ipynb
-├── model/                          ← serialised artifacts (gitignored — see live Space)
-│   ├── fraud_model.pkl
-│   ├── scaler.pkl
-│   ├── feature_cols.pkl
-│   └── metadata.json
+├── model/                          ← gitignored in GitHub; committed in HF Spaces repo
+│   ├── fraud_pipeline.joblib       ← sklearn Pipeline (ColumnTransformer + XGBClassifier)
+│   └── metadata.json               ← threshold, metrics, feature order
 └── tests/
     ├── fixtures/                   ← generated locally via generate_fixtures.py (gitignored)
     ├── conftest.py                 ← sets MODEL_DIR before app import
     └── test_api.py                 ← 21 smoke tests
 ```
+
+### Two-repo deployment pattern
+
+This project uses two separate git repos to manage the model artifact cleanly:
+
+| Repo | Contains `model/` | Purpose |
+|---|---|---|
+| `github.com/sakshisingh-mooni/credit-card-fraud-detection` | No (gitignored) | Source code, notebook, tests |
+| HF Spaces repo | Yes (committed) | Live deployment — Dockerfile copies `model/` into image |
+
+The `model/` directory is gitignored in the GitHub repo to avoid committing large binary files. The HF Spaces repo is a separate clone where `model/` is tracked and committed so the Dockerfile can copy it into the Docker image at build time.
 
 ---
 
