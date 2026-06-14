@@ -1,11 +1,12 @@
 # .dockerignore — Credit Card Fraud Detection API
-# Prevents large training files and dev artifacts from entering the Docker image.
-# Docker sends the entire build context to the daemon before building.
-# Without this file, creditcard.csv (143MB) and notebooks would be included.
+# This Dockerfile is used to build the live HF Spaces deployment, where
+# model/ IS present and committed. If you clone this GitHub repo to build
+# the image yourself, you'll need to add model/ locally first (see README —
+# "To retrain the model") since model/ is gitignored here.
 #
 # Source: https://docs.docker.com/build/concepts/context/#dockerignore-files
 
-# ── Training data (never goes in production image) ────────────────────────────
+# ── Training data (never goes in the image) ───────────────────────────────────
 *.csv
 *.parquet
 *.feather
@@ -24,13 +25,13 @@ __pycache__/
 # ── Test and training scripts ─────────────────────────────────────────────────
 tests/
 SAVE_MODEL_CELL.py
+generate_fixtures.py
+requirements-notebook.txt
 
 # ── Dev and CI files ──────────────────────────────────────────────────────────
 .gitignore
 .git/
 *.md
-*.txt
-!requirements.txt
 
 # ── IDE and OS files ──────────────────────────────────────────────────────────
 .vscode/

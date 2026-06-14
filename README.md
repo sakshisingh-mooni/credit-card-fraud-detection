@@ -1,8 +1,9 @@
 # Credit Card Fraud Detection
 
-> XGBoost fraud classifier trained on 284,807 real transactions · deployed as a REST API on Azure · PR-AUC 0.87 · ROC-AUC 0.97
+> XGBoost fraud classifier trained on 284,807 real transactions · deployed as a REST API on Hugging Face Spaces · PR-AUC 0.87 · ROC-AUC 0.97
 
-**Live API** → `https://fraud-detection-api-sakshi.azurewebsites.net`
+**Live API** → `https://sakshisingh2710-credit-card-fraud-detection.hf.space`
+**Space page** → [huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection](https://huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection)
 
 ---
 
@@ -22,11 +23,12 @@ Client (curl / Postman / app)
         │ HTTPS
         ▼
 ┌─────────────────────────────────────────┐
-│   Azure Web App for Containers (B1)     │
-│   Central India · fraud-detection-api   │
+│   Hugging Face Spaces (Docker SDK)      │
+│   credit-card-fraud-detection           │
 │                                         │
 │  ┌──────────────────────────────────┐   │
 │  │  Gunicorn (2 workers × 2 threads)│   │
+│  │  bound to 0.0.0.0:7860            │   │
 │  │  ┌────────────────────────────┐  │   │
 │  │  │  Flask 3.x REST API        │  │   │
 │  │  │  ├── GET  /health          │  │   │
@@ -44,15 +46,9 @@ Client (curl / Postman / app)
 │  │  └── metadata.json               │   │
 │  └──────────────────────────────────┘   │
 └─────────────────────────────────────────┘
-        ▲
-        │ docker pull
-        │
-┌───────────────────────────┐
-│  Azure Container Registry │
-│  frauddetectionacrmooni   │
-│  fraud-api:v1             │
-└───────────────────────────┘
 ```
+
+The API is built and run from a single `Dockerfile`. The live deployment runs on Hugging Face Spaces, which builds the image on push and routes external traffic to port `7860`.
 
 ---
 
@@ -60,13 +56,12 @@ Client (curl / Postman / app)
 
 | Layer | Technology |
 |---|---|
-| Model | XGBoost 3.2 · scikit-learn 1.9 |
+| Model | XGBoost 3.2 · scikit-learn 1.8 |
 | Imbalance handling | `scale_pos_weight=577` · SMOTE (CV only) |
 | Explainability | SHAP TreeExplainer |
-| API | Flask 3.1 · Gunicorn 26 |
+| API | Flask 3.1 · Gunicorn 23 |
 | Containerisation | Docker (python:3.12-slim) |
-| Registry | Azure Container Registry (Basic) |
-| Hosting | Azure Web App for Containers (B1 Linux) |
+| Hosting | Hugging Face Spaces (Docker SDK, free CPU tier) |
 | Testing | pytest · 21 tests · Flask test client |
 
 ---
@@ -83,10 +78,10 @@ Evaluated on a held-out 20% test split (56,962 transactions, 98 fraud cases).
 | Fraud precision | 95% |
 | Optimal threshold | 0.99 |
 
-**Why PR-AUC over ROC-AUC?**  
+**Why PR-AUC over ROC-AUC?**
 With 0.17% fraud, a model that predicts "legitimate" for every transaction scores 99.8% accuracy and ROC-AUC ~0.5. PR-AUC is the right metric for severe class imbalance — it measures performance specifically on the positive (fraud) class.
 
-**Why threshold = 0.99?**  
+**Why threshold = 0.99?**
 `scale_pos_weight=577` tells XGBoost that missing a fraud costs 577× more than a false alarm. The model pushes fraud probabilities very high for suspicious transactions (often > 0.995). The threshold was tuned by maximising F1 on the precision-recall curve — 0.99 is where precision and recall trade off optimally for this model's output distribution, not a naive choice.
 
 ---
@@ -105,13 +100,13 @@ With 0.17% fraud, a model that predicts "legitimate" for every transaction score
 
 ## API reference
 
-**Base URL:** `https://fraud-detection-api-sakshi.azurewebsites.net`
+**Base URL:** `https://sakshisingh2710-credit-card-fraud-detection.hf.space`
 
 ### GET /health
 Liveness probe. Returns 200 when the model is loaded and the server is ready.
 
 ```bash
-curl https://fraud-detection-api-sakshi.azurewebsites.net/health
+curl https://sakshisingh2710-credit-card-fraud-detection.hf.space/health
 ```
 ```json
 {"model_version": "1.0.0", "status": "ok"}
@@ -121,7 +116,7 @@ curl https://fraud-detection-api-sakshi.azurewebsites.net/health
 Model metadata — version, threshold, metrics, training parameters.
 
 ```bash
-curl https://fraud-detection-api-sakshi.azurewebsites.net/info
+curl https://sakshisingh2710-credit-card-fraud-detection.hf.space/info
 ```
 ```json
 {
@@ -141,7 +136,7 @@ Single transaction prediction.
 **Request body** — 30 floats in order: V1–V28 (PCA), Time (seconds), Amount (USD).
 
 ```bash
-curl -X POST https://fraud-detection-api-sakshi.azurewebsites.net/predict \
+curl -X POST https://sakshisingh2710-credit-card-fraud-detection.hf.space/predict \
   -H "Content-Type: application/json" \
   -d '{"features": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}'
 ```
@@ -161,7 +156,7 @@ curl -X POST https://fraud-detection-api-sakshi.azurewebsites.net/predict \
 Up to 1,000 transactions per request. Partial errors are collected per-index without failing the entire batch.
 
 ```bash
-curl -X POST https://fraud-detection-api-sakshi.azurewebsites.net/predict/batch \
+curl -X POST https://sakshisingh2710-credit-card-fraud-detection.hf.space/predict/batch \
   -H "Content-Type: application/json" \
   -d '{
     "transactions": [
@@ -189,24 +184,34 @@ curl -X POST https://fraud-detection-api-sakshi.azurewebsites.net/predict/batch 
 
 **Prerequisites:** Python 3.12+, Docker Desktop
 
+> **Note:** `model/` is not included in this repository (gitignored — see [Project structure](#project-structure)). To run locally, either retrain the model (below) or download the artifacts from the [live Space](https://huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection/tree/main/model).
+
 ```bash
-git clone https://github.com/<your-username>/credit-card-fraud-detection
+git clone https://github.com/sakshisingh-mooni/credit-card-fraud-detection
 cd credit-card-fraud-detection
 
 # Install API dependencies
 pip install -r requirements.txt
 
-# Run tests (requires model artifacts in tests/fixtures/)
+# Run tests (generate fixtures first — not committed to the repo)
+python generate_fixtures.py
 python -m pytest tests/ -v
 # Expected: 21 passed
 
-# Start the API
+# Start the API (requires model/ — see note above)
 python app.py
-# or with gunicorn (same as Azure):
-gunicorn --bind 0.0.0.0:8000 --workers 2 --threads 2 app:app
+# or with gunicorn:
+gunicorn --bind 0.0.0.0:7860 --workers 2 --threads 2 app:app
 
 # Test it
-curl http://localhost:8000/health
+curl http://localhost:7860/health
+```
+
+**To build and run the container locally:**
+```bash
+docker build -t fraud-api .
+docker run -p 7860:7860 fraud-api
+curl http://localhost:7860/health
 ```
 
 **To retrain the model**, open `credit_card_fraud_detection_v2.ipynb`, add `creditcard.csv` to the project root, and run Kernel → Restart & Run All. The last cell exports all artifacts to `model/`.
@@ -222,51 +227,40 @@ pip install -r requirements-notebook.txt
 
 ```
 credit-card-fraud-detection/
+├── README.md
 ├── app.py                          ← Flask REST API
-├── Dockerfile                      ← python:3.12-slim, non-root user
+├── Dockerfile                      ← python:3.12-slim, non-root user, port 7860
 ├── .dockerignore
+├── .gitignore
 ├── requirements.txt                ← API runtime deps only
 ├── requirements-notebook.txt       ← training deps (pandas, shap, imbalanced-learn)
 ├── SAVE_MODEL_CELL.py              ← paste as last notebook cell to export model
 ├── credit_card_fraud_detection_v2.ipynb
-├── model/                          ← serialised artifacts (gitignored)
+├── model/                          ← serialised artifacts (gitignored — see live Space)
 │   ├── fraud_model.pkl
 │   ├── scaler.pkl
 │   ├── feature_cols.pkl
 │   └── metadata.json
 └── tests/
-    ├── fixtures/                   ← minimal test artifacts (not the trained model)
+    ├── fixtures/                   ← generated locally via generate_fixtures.py (gitignored)
     ├── conftest.py                 ← sets MODEL_DIR before app import
     └── test_api.py                 ← 21 smoke tests
 ```
 
 ---
 
-## Deployment (Azure)
+## Deployment
 
-The full step-by-step is in [`AZURE_DEPLOYMENT_GUIDE.md`](AZURE_DEPLOYMENT_GUIDE.md).
+The live API is deployed on **Hugging Face Spaces** (Docker SDK, free CPU tier). The Space repo mirrors this one but additionally commits `model/`, since the Dockerfile copies it into the image at build time.
 
-**Summary:**
-```bash
-# Build and push to Azure Container Registry
-az acr build --registry frauddetectionacrmooni --image fraud-api:v1 .
-
-# Deploy to Azure Web App
-az webapp create \
-  --resource-group fraud-detection-rg \
-  --plan fraud-plan \
-  --name fraud-detection-api-sakshi \
-  --deployment-container-image-name frauddetectionacrmooni.azurecr.io/fraud-api:v1
-```
-
-**Cost:** Azure for Students subscription · ~₹0 within free credit limits.
+Space: [huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection](https://huggingface.co/spaces/Sakshisingh2710/credit-card-fraud-detection)
 
 ---
 
 ## Dataset
 
-[Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) — MLG-ULB, Université Libre de Bruxelles.  
-284,807 transactions · 492 fraud (0.17%) · 28 PCA-anonymised features + Time + Amount.  
+[Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) — MLG-ULB, Université Libre de Bruxelles.
+284,807 transactions · 492 fraud (0.17%) · 28 PCA-anonymised features + Time + Amount.
 The CSV is not committed to this repository.
 
 ---

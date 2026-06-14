@@ -1,4 +1,35 @@
+# .gitignore — GitHub portfolio repo
+#
+# model/ is intentionally ignored here — trained artifacts are large binary
+# files and don't belong in a portfolio repo. The live API (with model/
+# committed) is deployed separately on Hugging Face Spaces.
+# See README.md for the Space link.
+
 model/
 creditcard.csv
-__pycache__/
+*.parquet
+*.feather
+
+# ── Jupyter notebook checkpoints ────────────────────────────────────────────────
 .ipynb_checkpoints/
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+.pytest_cache/
+
+# ── Test fixtures (generated locally via generate_fixtures.py) ─────────────────
+tests/fixtures/
+
+# ── IDE and OS files ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
